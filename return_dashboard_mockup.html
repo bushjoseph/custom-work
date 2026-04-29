@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Return Storage — Grid Restriction Impact Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg-primary: #0F0F0F; --bg-secondary: #1A1A1A; --bg-card: #1E1E1E; --bg-hover: #252525;
+    --border: #2A2A2A; --border-active: #4A4A4A;
+    --text-primary: #F0F0F0; --text-secondary: #999; --text-muted: #666;
+    --accent-green: #00D4AA; --accent-green-dim: rgba(0,212,170,0.15);
+    --accent-red: #FF6B6B; --accent-red-dim: rgba(255,107,107,0.15);
+    --accent-amber: #FFB347;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',-apple-system,sans-serif; background:var(--bg-primary); color:var(--text-primary); min-height:100vh; -webkit-font-smoothing:antialiased; }
+  .header { padding:24px 32px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .header-left { display:flex; align-items:center; gap:16px; }
+  .logo { font-size:11px; font-weight:600; letter-spacing:3px; text-transform:uppercase; }
+  .header-divider { width:1px; height:20px; background:var(--border); }
+  .header-title { font-size:14px; color:var(--text-secondary); }
+  .header-right { font-size:12px; color:var(--text-muted); }
+  .controls-bar { padding:20px 32px; border-bottom:1px solid var(--border); display:flex; gap:32px; flex-wrap:wrap; }
+  .control-group { display:flex; flex-direction:column; gap:8px; }
+  .control-label { font-size:11px; font-weight:500; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); }
+  .toggle-group { display:flex; gap:4px; background:var(--bg-secondary); border-radius:8px; padding:3px; border:1px solid var(--border); }
+  .toggle-btn { padding:7px 14px; border:none; background:transparent; color:var(--text-muted); font-family:'DM Sans',sans-serif; font-size:13px; border-radius:6px; cursor:pointer; transition:all .2s; white-space:nowrap; }
+  .toggle-btn:hover { color:var(--text-secondary); background:var(--bg-hover); }
+  .toggle-btn.active { background:var(--bg-card); color:var(--text-primary); font-weight:500; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+  .main { padding:24px 32px; display:grid; grid-template-columns:1fr 320px; gap:24px; max-width:1400px; }
+  .chart-area { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:24px; }
+  .chart-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+  .chart-title { font-size:16px; font-weight:500; }
+  .chart-subtitle { font-size:13px; color:var(--text-muted); margin-top:4px; }
+  .chart-unit { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; }
+  .legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-secondary); }
+  .legend-dot { width:8px; height:8px; border-radius:2px; }
+  .chart-wrap { position:relative; height:360px; }
+  .sidebar { display:flex; flex-direction:column; gap:16px; }
+  .metric-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .metric-label { font-size:11px; font-weight:500; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; }
+  .metric-value { font-size:32px; font-weight:600; line-height:1; }
+  .metric-change { display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:500; margin-top:8px; padding:3px 8px; border-radius:4px; }
+  .metric-change.negative { color:var(--accent-red); background:var(--accent-red-dim); }
+  .metric-change.positive { color:var(--accent-green); background:var(--accent-green-dim); }
+  .metric-context { font-size:12px; color:var(--text-muted); margin-top:8px; }
+  .investability-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .investability-indicator { display:flex; align-items:center; gap:10px; margin-top:12px; }
+  .investability-dot { width:12px; height:12px; border-radius:50%; }
+  .investability-dot.viable { background:var(--accent-green); box-shadow:0 0 8px rgba(0,212,170,.4); }
+  .investability-dot.marginal { background:var(--accent-amber); box-shadow:0 0 8px rgba(255,179,71,.4); }
+  .investability-dot.unviable { background:var(--accent-red); box-shadow:0 0 8px rgba(255,107,107,.4); }
+  .investability-text { font-size:15px; font-weight:500; }
+  .investability-text.viable { color:var(--accent-green); }
+  .investability-text.marginal { color:var(--accent-amber); }
+  .investability-text.unviable { color:var(--accent-red); }
+  .comparison-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .comparison-title { font-size:11px; font-weight:500; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin-bottom:16px; }
+  .comparison-header { display:flex; justify-content:space-between; padding-bottom:8px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+  .comparison-header span { font-size:10px; font-weight:500; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); }
+  .comparison-header-values { display:flex; gap:16px; }
+  .comparison-header-values span { min-width:60px; text-align:right; }
+  .comparison-header-values span:last-child { min-width:48px; }
+  .comparison-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); }
+  .comparison-row:last-child { border-bottom:none; }
+  .comparison-stream { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary); }
+  .comparison-stream-dot { width:6px; height:6px; border-radius:1px; }
+  .comparison-values { display:flex; gap:16px; align-items:center; }
+  .comparison-base { font-size:12px; color:var(--text-muted); min-width:60px; text-align:right; }
+  .comparison-restricted { font-size:12px; font-weight:500; min-width:60px; text-align:right; }
+  .comparison-delta { font-size:11px; font-weight:500; min-width:48px; text-align:right; }
+  .comparison-delta.negative { color:var(--accent-red); }
+  .comparison-delta.positive { color:var(--accent-green); }
+  .footer-note { padding:16px 32px; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="logo">Modoenergy</div>
+    <div class="header-divider"></div>
+    <div class="header-title">Grid Restriction Impact Dashboard — ReturnStorage B.V.</div>
+  </div>
+  <div class="header-right">April 2026 · Confidential</div>
+</div>
+<div class="controls-bar">
+  <div class="control-group">
+    <div class="control-label">Asset duration</div>
+    <div class="toggle-group" id="duration-toggles">
+      <button class="toggle-btn active" data-value="2h">2h</button>
+      <button class="toggle-btn" data-value="3h">3h</button>
+      <button class="toggle-btn" data-value="4h">4h</button>
+    </div>
+  </div>
+  <div class="control-group">
+    <div class="control-label">Curtailment profile</div>
+    <div class="toggle-group" id="curtailment-toggles">
+      <button class="toggle-btn active" data-value="none">Unconstrained</button>
+      <button class="toggle-btn" data-value="demand">Peak demand</button>
+      <button class="toggle-btn" data-value="solar">Peak solar</button>
+      <button class="toggle-btn" data-value="wind">Peak wind</button>
+    </div>
+  </div>
+  <div class="control-group">
+    <div class="control-label">Schedule freeze</div>
+    <div class="toggle-group" id="freeze-toggles">
+      <button class="toggle-btn active" data-value="none">None</button>
+      <button class="toggle-btn" data-value="moderate">Moderate</button>
+      <button class="toggle-btn" data-value="severe">Severe</button>
+    </div>
+  </div>
+</div>
+<div class="main">
+  <div class="chart-area">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Annual Gross Revenue by Stream</div>
+        <div class="chart-subtitle" id="chart-subtitle">2h duration · Unconstrained · No schedule freeze</div>
+        <div class="chart-unit">€k/MW/year</div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#C4B5E3"></div> Day-Ahead</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#8B6CC1"></div> Intraday</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#F5A623"></div> FCR</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#E8766A"></div> aFRR</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#B5303C"></div> aFRRe</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="revenue-chart"></canvas></div>
+  </div>
+  <div class="sidebar">
+    <div class="metric-card">
+      <div class="metric-label">10-year average revenue</div>
+      <div class="metric-value" id="avg-revenue">€131k</div>
+      <div class="metric-change" id="revenue-change" style="display:none"><span id="revenue-change-text"></span></div>
+      <div class="metric-context" id="revenue-context">per MW per year · unconstrained baseline</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Unlevered IRR</div>
+      <div class="metric-value" id="irr-value">13.2%</div>
+      <div class="metric-change" id="irr-change" style="display:none"><span id="irr-change-text"></span></div>
+    </div>
+    <div class="investability-card">
+      <div class="metric-label">Investability assessment</div>
+      <div class="investability-indicator">
+        <div class="investability-dot viable" id="invest-dot"></div>
+        <div class="investability-text viable" id="invest-text">Viable</div>
+      </div>
+      <div class="metric-context" id="invest-context" style="margin-top:10px">Unconstrained baseline exceeds target IRR threshold</div>
+    </div>
+    <div class="comparison-card">
+      <div class="comparison-title">Revenue breakdown vs baseline</div>
+      <div class="comparison-header">
+        <span>Stream</span>
+        <div class="comparison-header-values"><span>Base</span><span>Current</span><span>Delta</span></div>
+      </div>
+      <div id="comparison-rows"></div>
+    </div>
+  </div>
+</div>
+<div class="footer-note">Modo Energy · Proprietary dispatch simulation · All figures indicative and subject to final model calibration</div>
+
+<script>
+const realData = {
+  years: ['2027','2028','2029','2030','2031','2032','2033','2034','2035','2036'],
+  da:    [46.9, 75.9, 71.7, 71.3, 69.4, 70.2, 69.9, 68.4, 67.5, 67.5],
+  id:    [42.1, 80.0, 75.4, 69.6, 64.2, 62.5, 62.9, 60.6, 59.3, 58.5],
+  fcr:   [0.1,  0.3,  0.4,  0.4,  0.4,  0.4,  0.4,  0.4,  0.4,  0.4],
+  afrr:  [4.0,  3.8,  2.5,  1.8,  1.5,  1.2,  1.1,  1.0,  0.9,  0.9],
+  afrre: [3.1,  4.0,  3.1,  2.4,  1.9,  1.6,  1.4,  1.2,  1.2,  1.1],
+};
+const durationScale = { '2h':1.0, '3h':1.18, '4h':1.32 };
+const durationIRR = { '2h':13.2, '3h':11.8, '4h':10.5 };
+const curtF = { none:{w:1,a:1,i:0}, demand:{w:.88,a:.92,i:-2.8}, solar:{w:.84,a:.88,i:-3.4}, wind:{w:.87,a:.91,i:-3.0} };
+const frzF = { none:{w:1,a:1,i:0}, moderate:{w:.95,a:.97,i:-1.5}, severe:{w:.87,a:.93,i:-3.2} };
+let state = { duration:'2h', curtailment:'none', freeze:'none' };
+
+const r1 = v => Math.round(v*10)/10;
+const avg = arr => Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+
+function getData() {
+  const sc = durationScale[state.duration], cf = curtF[state.curtailment], ff = frzF[state.freeze];
+  const wF = cf.w*ff.w, aF = cf.a*ff.a;
+  const apply = (arr,f) => arr.map(v=>r1(v*sc*f));
+  const bDA=apply(realData.da,1), bID=apply(realData.id,1), bFCR=apply(realData.fcr,1), bAFRR=apply(realData.afrr,1), bAFRRe=apply(realData.afrre,1);
+  const cDA=apply(realData.da,wF), cID=apply(realData.id,wF), cFCR=apply(realData.fcr,aF), cAFRR=apply(realData.afrr,aF), cAFRRe=apply(realData.afrre,aF);
+  const sumArr = (...arrs) => arrs[0].map((_,i)=>r1(arrs.reduce((s,a)=>s+a[i],0)));
+  const bT=sumArr(bDA,bID,bFCR,bAFRR,bAFRRe), cT=sumArr(cDA,cID,cFCR,cAFRR,cAFRRe);
+  const aR=avg(cT), bR=avg(bT), iD=cf.i+ff.i;
+  return { cDA,cID,cFCR,cAFRR,cAFRRe,cT, bDA,bID,bFCR,bAFRR,bAFRRe,bT, avgRev:aR, baseAvgRev:bR, revDelta:aR-bR, revPct:Math.round(((aR-bR)/bR)*100), irr:r1(durationIRR[state.duration]+iD), baseIrr:durationIRR[state.duration], irrDelta:iD };
+}
+
+let chart = null;
+function updateChart() {
+  const d = getData();
+  const restricted = state.curtailment!=='none'||state.freeze!=='none';
+
+  const datasets = [
+    { label:'Day-Ahead', data:d.cDA, backgroundColor:'#C4B5E3' },
+    { label:'Intraday', data:d.cID, backgroundColor:'#8B6CC1' },
+    { label:'FCR', data:d.cFCR, backgroundColor:'#F5A623' },
+    { label:'aFRR', data:d.cAFRR, backgroundColor:'#E8766A' },
+    { label:'aFRRe', data:d.cAFRRe, backgroundColor:'#B5303C' },
+  ];
+  if (restricted) {
+    datasets.push({ label:'Baseline', data:d.bT, type:'line', borderColor:'#666', borderWidth:1.5, borderDash:[5,4], pointRadius:0, fill:false, order:-1 });
+  }
+
+  if (chart) { chart.destroy(); }
+  const ctx = document.getElementById('revenue-chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: realData.years, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor:'#2A2A2A', titleColor:'#F0F0F0', bodyColor:'#999', borderColor:'#444', borderWidth:1,
+        callbacks: { label: ctx => `${ctx.dataset.label}: €${ctx.parsed.y}k` }
+      }},
+      scales: {
+        x: { stacked:true, grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ color:'#666', font:{ family:'DM Sans', size:12 } } },
+        y: { stacked:true, grid:{ color:'rgba(255,255,255,0.06)' }, ticks:{ color:'#666', font:{ family:'DM Sans', size:12 }, callback: v=>v+'k' }, beginAtZero:true }
+      },
+      interaction: { intersect:false, mode:'index' }
+    }
+  });
+
+  // Subtitle
+  const cL = state.curtailment==='none'?'Unconstrained':`Peak ${state.curtailment} curtailment`;
+  const fL = state.freeze==='none'?'No schedule freeze':`${state.freeze[0].toUpperCase()+state.freeze.slice(1)} schedule freeze`;
+  document.getElementById('chart-subtitle').textContent = `${state.duration} duration · ${cL} · ${fL}`;
+
+  // Metrics
+  document.getElementById('avg-revenue').textContent = `€${d.avgRev}k`;
+  const rC = document.getElementById('revenue-change');
+  if (d.revDelta!==0) { rC.style.display='inline-flex'; rC.className=`metric-change ${d.revDelta<0?'negative':'positive'}`; document.getElementById('revenue-change-text').textContent=`${d.revPct>0?'+':''}${d.revPct}% vs baseline`; } else { rC.style.display='none'; }
+  document.getElementById('revenue-context').textContent = restricted ? `per MW per year · baseline €${d.baseAvgRev}k` : 'per MW per year · unconstrained baseline';
+
+  document.getElementById('irr-value').textContent = `${d.irr}%`;
+  const iC = document.getElementById('irr-change');
+  if (d.irrDelta!==0) { iC.style.display='inline-flex'; iC.className=`metric-change ${d.irrDelta<0?'negative':'positive'}`; document.getElementById('irr-change-text').textContent=`${d.irrDelta>0?'+':''}${r1(d.irrDelta)}pp vs baseline`; } else { iC.style.display='none'; }
+
+  // Investability
+  const dot=document.getElementById('invest-dot'), txt=document.getElementById('invest-text'), ctx2=document.getElementById('invest-context');
+  if (d.irr>=10) { dot.className='investability-dot viable'; txt.className='investability-text viable'; txt.textContent='Viable'; ctx2.textContent='Exceeds target IRR threshold under these conditions'; }
+  else if (d.irr>=7) { dot.className='investability-dot marginal'; txt.className='investability-text marginal'; txt.textContent='Marginal'; ctx2.textContent='Below target IRR. May require BKZ relief or earlier COD'; }
+  else { dot.className='investability-dot unviable'; txt.className='investability-text unviable'; txt.textContent='Not viable'; ctx2.textContent='Below minimum threshold under these conditions'; }
+
+  // Comparison
+  const streams = [
+    {name:'Day-Ahead',color:'#C4B5E3',base:d.bDA,cur:d.cDA},
+    {name:'Intraday',color:'#8B6CC1',base:d.bID,cur:d.cID},
+    {name:'FCR',color:'#F5A623',base:d.bFCR,cur:d.cFCR},
+    {name:'aFRR',color:'#E8766A',base:d.bAFRR,cur:d.cAFRR},
+    {name:'aFRRe',color:'#B5303C',base:d.bAFRRe,cur:d.cAFRRe},
+  ];
+  let html='';
+  streams.forEach(s=>{
+    const b=avg(s.base),c=avg(s.cur),dl=c-b,p=b>0?Math.round((dl/b)*100):0,cls=dl<0?'negative':dl>0?'positive':'';
+    html+=`<div class="comparison-row"><div class="comparison-stream"><div class="comparison-stream-dot" style="background:${s.color}"></div>${s.name}</div><div class="comparison-values"><div class="comparison-base">€${b}k</div><div class="comparison-restricted">€${c}k</div><div class="comparison-delta ${cls}">${dl===0?'—':(p>0?'+':'')+p+'%'}</div></div></div>`;
+  });
+  const tP=d.revPct, tC=d.revDelta<0?'negative':d.revDelta>0?'positive':'';
+  html+=`<div class="comparison-row" style="border-top:1px solid var(--border-active);padding-top:10px;margin-top:4px"><div class="comparison-stream" style="font-weight:500;color:var(--text-primary)">Total</div><div class="comparison-values"><div class="comparison-base" style="font-weight:500">€${d.baseAvgRev}k</div><div class="comparison-restricted" style="font-weight:600">€${d.avgRev}k</div><div class="comparison-delta ${tC}" style="font-weight:500">${d.revDelta===0?'—':(tP>0?'+':'')+tP+'%'}</div></div></div>`;
+  document.getElementById('comparison-rows').innerHTML=html;
+}
+
+function setupToggles(id,key){
+  document.getElementById(id).querySelectorAll('.toggle-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{ btn.parentElement.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); state[key]=btn.dataset.value; updateChart(); });
+  });
+}
+setupToggles('duration-toggles','duration');
+setupToggles('curtailment-toggles','curtailment');
+setupToggles('freeze-toggles','freeze');
+updateChart();
+</script>
+</body>
+</html>
